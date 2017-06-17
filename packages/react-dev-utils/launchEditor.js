@@ -29,11 +29,16 @@ function isTerminalEditor(editor) {
 // We can't just re-use full process name, because it will spawn a new instance
 // of the app every time
 var COMMON_EDITORS = {
-  '/Applications/Atom.app/Contents/MacOS/Atom': 'atom',
-  '/Applications/Atom Beta.app/Contents/MacOS/Atom Beta': '/Applications/Atom Beta.app/Contents/MacOS/Atom Beta',
-  '/Applications/Sublime Text.app/Contents/MacOS/Sublime Text': '/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl',
-  '/Applications/Sublime Text 2.app/Contents/MacOS/Sublime Text 2': '/Applications/Sublime Text 2.app/Contents/SharedSupport/bin/subl',
-  '/Applications/Visual Studio Code.app/Contents/MacOS/Electron': 'code',
+  'darwin': {
+    '/Applications/Atom.app/Contents/MacOS/Atom': 'atom',
+    '/Applications/Atom Beta.app/Contents/MacOS/Atom Beta': '/Applications/Atom Beta.app/Contents/MacOS/Atom Beta',
+    '/Applications/Sublime Text.app/Contents/MacOS/Sublime Text': '/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl',
+    '/Applications/Sublime Text 2.app/Contents/MacOS/Sublime Text 2': '/Applications/Sublime Text 2.app/Contents/SharedSupport/bin/subl',
+    '/Applications/Visual Studio Code.app/Contents/MacOS/Electron': 'code',
+  },
+  'win32': {
+    '\\Program Files (x86)\\Microsoft VS Code\\Code.exe': 'code'
+  }
 };
 
 function addWorkspaceToArgumentsIfExists(args, workspace) {
@@ -86,22 +91,32 @@ function getArgumentsForLineNumber(editor, fileName, lineNumber, workspace) {
   return [fileName];
 }
 
+function getProcessList(platform) {
+  if (platform === 'darwin') {
+    return child_process.execSync('ps x').toString();
+  } else if (platform === 'win32') {
+    return child_process.execSync('powershell -Command "Get-Process | Select-Object Path"').toString();
+  } else {
+    return '';
+  }
+}
+
 function guessEditor() {
   // Explicit config always wins
   if (process.env.REACT_EDITOR) {
     return shellQuote.parse(process.env.REACT_EDITOR);
   }
 
-  // Using `ps x` on OSX we can find out which editor is currently running.
-  // Potentially we could use similar technique for Windows and Linux
-  if (process.platform === 'darwin') {
+  // Using `ps x` on OSX or `Get-Process` on Windows we can find out which editor is currently running.
+  // Potentially we could use similar technique for Linux
+  if (process.platform === 'darwin' || process.platform === 'win32') {
     try {
-      var output = child_process.execSync('ps x').toString();
-      var processNames = Object.keys(COMMON_EDITORS);
+      var output = getProcessList(process.platform);
+      var processNames = Object.keys(COMMON_EDITORS[process.platform]);
       for (var i = 0; i < processNames.length; i++) {
         var processName = processNames[i];
         if (output.indexOf(processName) !== -1) {
-          return [COMMON_EDITORS[processName]];
+          return [COMMON_EDITORS[process.platform][processName]];
         }
       }
     } catch (error) {
